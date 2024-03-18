@@ -678,4 +678,3 @@ class Stack():
             self.arg[name] = p
 
         return result
-
