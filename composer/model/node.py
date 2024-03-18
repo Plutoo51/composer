@@ -30,13 +30,13 @@ class Node:
         self.container = container
         self.manifest = manifest
         self.env = manifest.get('env', [])
-        self.param = [param.Param(stack, pDef) for pDef in manifest.get('param', [])]
+        self.name = manifest.get('name', '')
+        self.param = [param.Param(stack, pDef, self) for pDef in manifest.get('param', [])]
         self.remap = manifest.get('remap', [])
         self.pkg = manifest.get('pkg', '')
         self.exec = manifest.get('exec', '')
         self.plugin = manifest.get('plugin', '')
         self.lifecycle = manifest.get('lifecycle', '')
-        self.name = manifest.get('name', '')
         self.ros_args = manifest.get('ros_args', '')
         self.args = stack.resolve_expression(manifest.get('args', ''))
         self.namespace = manifest.get('namespace', os.getenv('MUTONS', ''))
@@ -45,7 +45,9 @@ class Node:
         self.iff = manifest.get('if', '')
         self.unless = manifest.get('unless', '')
         self.action = manifest.get('action', '')
-        self.ros_params = [{key: value} for p in self.param for key, value in p.value.items()]
+        for p in self.param:
+            print(f"{p.name} : {p.value}")
+        self.ros_params = [{p.name: p.value} for p in self.param]
         self.remap_args = [(stack.resolve_expression(rm['from']), stack.resolve_expression(rm['to'])) for rm in self.remap]
 
     def toManifest(self):

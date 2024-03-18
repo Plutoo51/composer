@@ -19,14 +19,15 @@ import subprocess
 import shlex
 import yaml
 import re
-
+import traceback
 
 class Param:
-    def __init__(self, stack, manifest=None):
+    def __init__(self, stack, manifest=None, node=None):
         if manifest is None:
             manifest = {}
 
         self.stack = stack
+        self.node = node
         self.manifest = manifest
         self.name = manifest.get('name', '')
         self.value = self._resolve_value(manifest, stack)
@@ -45,20 +46,35 @@ class Param:
 
     def _resolve_from_file(self, filepath):
         """Fetch and return the content of the specified file."""
-        with open(filepath, 'r') as file:
-            try:
+        try:
+            with open(filepath, 'r') as file:
                 yaml_contents = yaml.safe_load(file)
-                # FIXME: Below pattern matches everything. So it will load every parameter in yaml without looking at the relevant node name. 
-                pattern = re.compile(r'/.*?') 
-                matching_key = next(key for key in yaml_contents.keys() if pattern.match(key))
+                if yaml_contents is None:
+                    raise ValueError("YAML file is empty or contains invalid syntax.")
+
+                matching_key = None
+                for key in yaml_contents.keys():
+                    if key == self.node.name:
+                        matching_key = key
+                        break
+
+                if matching_key is None:
+                    raise ValueError(f"Node name '{self.node.name}' not found in the YAML file.")
+
                 ros_parameters = yaml_contents.get(matching_key, {}).get('ros__parameters', {})
                 return ros_parameters
 
-            except yaml.YAMLError as e:
-                print(f"Yaml read error: {e}")
-            except Exception as e:
-                print(f"Failed to read from file '{filepath}': {e}")
-                return None
+        except FileNotFoundError as e:
+            print(f"File not found error: {e}")
+        except PermissionError as e:
+            print(f"Permission error while reading file '{filepath}': {e}")
+        except yaml.YAMLError as e:
+            print(f"YAML error while reading file '{filepath}': {e}")
+        except BaseException as e:
+            traceback.print_exc()
+            print(f"Failed to read from file '{filepath}': {e}")
+        return None
+
             
 
     def _execute_command(self, command):
