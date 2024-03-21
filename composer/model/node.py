@@ -31,6 +31,7 @@ class Node:
         self.manifest = manifest
         self.env = manifest.get('env', [])
         self.name = manifest.get('name', '')
+        self.ros_params = []
         self.param = [param.Param(stack, pDef, self) for pDef in manifest.get('param', [])]
         self.remap = manifest.get('remap', [])
         self.pkg = manifest.get('pkg', '')
@@ -45,9 +46,11 @@ class Node:
         self.iff = manifest.get('if', '')
         self.unless = manifest.get('unless', '')
         self.action = manifest.get('action', '')
+
         for p in self.param:
-            print(f"{p.name} : {p.value}")
-        self.ros_params = [{p.name: p.value} for p in self.param]
+            if p.name is not None and p.value is not None:
+                self.ros_params.append({p.name :p.value})
+        
         self.remap_args = [(stack.resolve_expression(rm['from']), stack.resolve_expression(rm['to'])) for rm in self.remap]
 
     def toManifest(self):

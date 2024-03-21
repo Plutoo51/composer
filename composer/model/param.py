@@ -18,7 +18,6 @@
 import subprocess
 import shlex
 import yaml
-import re
 import traceback
 
 class Param:
@@ -47,6 +46,7 @@ class Param:
     def _resolve_from_file(self, filepath):
         """Fetch and return the content of the specified file."""
         try:
+            ros_parameters_list = []
             with open(filepath, 'r') as file:
                 yaml_contents = yaml.safe_load(file)
                 if yaml_contents is None:
@@ -62,7 +62,9 @@ class Param:
                     raise ValueError(f"Node name '{self.node.name}' not found in the YAML file.")
 
                 ros_parameters = yaml_contents.get(matching_key, {}).get('ros__parameters', {})
-                return ros_parameters
+                for key, value in ros_parameters.items():
+                    if key is not None and value is not None:
+                        self.node.ros_params.append({key: value})
 
         except FileNotFoundError as e:
             print(f"File not found error: {e}")
