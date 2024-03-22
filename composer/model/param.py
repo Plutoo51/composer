@@ -1,5 +1,5 @@
 #
-#  Copyright (c) 2023 Composiv.ai, Eteration A.S. and others
+#  Copyright (c) 2024 Composiv.ai, Eteration A.S. and others
 #
 # All rights reserved. This program and the accompanying materials
 # are made available under the terms of the Eclipse Public License v2.0
@@ -19,9 +19,13 @@ import subprocess
 import shlex
 import yaml
 import traceback
+import re
+import composer.model.stack as Stack
+import composer.model.node as Node
+
 
 class Param:
-    def __init__(self, stack, manifest=None, node=None):
+    def __init__(self, stack: Stack, manifest=None, node: Node = None):
         if manifest is None:
             manifest = {}
 
@@ -29,28 +33,35 @@ class Param:
         self.node = node
         self.manifest = manifest
         self.name = manifest.get('name', '')
-        self.value = self._resolve_value(manifest, stack)
-        self.sep = manifest.get('sep', '')
+        self.value = self._resolve_value(self.manifest)
         self.from_file = manifest.get('from', '')
-        self.namespace = manifest.get('namespace', '/')
         self.command = manifest.get('command', '')
 
-    def _resolve_value(self, manifest, stack):
+    def _resolve_value(self, manifest):
         """Resolve the value of the parameter from various sources."""
+        value = manifest.get('value', '')
         if 'from' in manifest:
-            return self._resolve_from_file(stack.resolve_expression(manifest['from']))
+            return self._resolve_from_file(self.stack.resolve_expression(manifest['from']))
         if 'command' in manifest:
-            return self._execute_command(stack.resolve_expression(manifest['command']))
-        return self._parse_value(manifest.get('value'))
+            return self._execute_command(self.stack.resolve_expression(manifest['command']))
+        if self.stack.has_expression(value):
+            parsed = self._resolve_param_expression(manifest.get('value', ''))
+            print(parsed)
+            return parsed
+        return self._parse_value(value)
+
+    def _resolve_param_expression(self, value):
+        """Resolve param expressions like find, arg, etc."""
+        return self.stack.resolve_expression(value)
 
     def _resolve_from_file(self, filepath):
         """Fetch and return the content of the specified file."""
         try:
-            ros_parameters_list = []
             with open(filepath, 'r') as file:
                 yaml_contents = yaml.safe_load(file)
                 if yaml_contents is None:
-                    raise ValueError("YAML file is empty or contains invalid syntax.")
+                    raise ValueError(
+                        "YAML file is empty or contains invalid syntax.")
 
                 matching_key = None
                 for key in yaml_contents.keys():
@@ -59,9 +70,11 @@ class Param:
                         break
 
                 if matching_key is None:
-                    raise ValueError(f"Node name '{self.node.name}' not found in the YAML file.")
+                    raise ValueError(
+                        f"Node name '{self.node.name}' not found in the YAML file.")
 
-                ros_parameters = yaml_contents.get(matching_key, {}).get('ros__parameters', {})
+                ros_parameters = yaml_contents.get(
+                    matching_key, {}).get('ros__parameters', {})
                 for key, value in ros_parameters.items():
                     if key is not None and value is not None:
                         self.node.ros_params.append({key: value})
@@ -76,8 +89,6 @@ class Param:
             traceback.print_exc()
             print(f"Failed to read from file '{filepath}': {e}")
         return None
-
-            
 
     def _execute_command(self, command):
         """Execute the specified command and return its output."""
@@ -108,9 +119,7 @@ class Param:
         return {
             "name": self.name,
             "value": self.value,
-            "sep": self.sep,
             "from": self.from_file,
-            "namespace": self.namespace,
             "command": self.command,
         }
 
@@ -118,9 +127,9 @@ class Param:
         """Check equality based on the attributes of the Param instance."""
         return isinstance(other, Param) and all(
             getattr(self, attr) == getattr(other, attr) for attr in [
-                'name', 'value', 'from_file', 'namespace', 'command'
+                'name', 'value', 'from_file', 'command'
             ])
 
     def __hash__(self):
         """Generate a hash value for this Param instance."""
-        return hash((self.name, self.value, self.from_file, self.namespace, self.command))
+        return hash((self.name, self.value, self.from_file, self.command))
