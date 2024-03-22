@@ -22,6 +22,7 @@ import uuid
 import composer.model.node as node
 import composer.model.param as param
 import composer.model.composable as composable
+import composer.model.arg as arg
 import rclpy
 from composer.introspection.introspector import Introspector
 from launch import LaunchDescription
@@ -55,30 +56,25 @@ class Stack():
         self.context = manifest.get('context', '')
         self.stackId = manifest.get('stackId', '')
         self.param = manifest.get('param', [])
-        self.arg = self.resolve_args(manifest.get('arg', []))
-
-        params = []
-        for pDef in self.param:
-            params.append(param.Param(self, pDef))
-        self.param = params
-
+        self.arg = manifest.get('arg', [])
         self.initialize()
-
-    def resolve_namespace(self):
-        """Resolve the namespace for the stack.
-
-        Returns:
-            str: The resolved namespace for the stack.
-        """
-        ns_prefix = '/' if not self.namespace.startswith('/') else ''
-        ns_suffix = '/' if not self.namespace.endswith('/') else ''
-        return f"{ns_prefix}{self.namespace}{ns_suffix}{self.name}/"
 
     def initialize(self):
         """Initialize the stack elements (nodes, composable nodes, parameters etc.)"""
 
         self.stack = []
         referenced_stacks = self.manifest.get('stack', [])
+
+        args = []
+        for aDef in self.arg:
+            args.append(arg.Arg(self, aDef))
+        self.arg = args
+
+        params = []
+        for pDef in self.param:
+            params.append(param.Param(self, pDef))
+        self.param = params
+
         for stackRef in referenced_stacks:
             stackDef = self.edge_device.stack(stackRef['thingId'])
             stack = Stack(self.edge_device, stackDef, self)
@@ -94,6 +90,9 @@ class Stack():
             sn = composable.Container(self, cDef)
             self.composable.append(sn)
 
+        
+
+        
     def compare_nodes(self, other):
         """Compare the nodes of the stack with another stack.
 
@@ -119,19 +118,21 @@ class Stack():
         Returns:
             tuple: A tuple containing sets of common, different, and added composable nodes.
         """
-        current_composables = {f"{c.namespace}/{c.name}": c for c in self.flatten_composable([])}
-        other_composables = {f"{c.namespace}/{c.name}": c for c in other.flatten_composable([])}
-        
+        current_composables = {
+            f"{c.namespace}/{c.name}": c for c in self.flatten_composable([])}
+        other_composables = {
+            f"{c.namespace}/{c.name}": c for c in other.flatten_composable([])}
+
         common_keys = current_composables.keys() & other_composables.keys()
         added_keys = other_composables.keys() - current_composables.keys()
         removed_keys = current_composables.keys() - other_composables.keys()
-        
+
         common = [current_composables[key] for key in common_keys]
         added = [other_composables[key] for key in added_keys]
         removed = [current_composables[key] for key in removed_keys]
-    
+
         return common, added, removed
-    
+
     def flatten_nodes(self, list):
         """Flatten the nested structure of nodes in the stack.
 
@@ -264,7 +265,8 @@ class Stack():
     def _merge_composables(self, merged, other):
         merged.composable = []
 
-        current_containers = {(c.namespace, c.name): c for c in self.composable}
+        current_containers = {(c.namespace, c.name)
+                               : c for c in self.composable}
         other_containers = {(c.namespace, c.name): c for c in other.composable}
 
         # Process added and removed containers
@@ -277,7 +279,8 @@ class Stack():
             else:
                 # For existing containers, compare nodes within and mark actions
                 current_container = current_containers[key]
-                self.compare_and_mark_nodes(current_container, container, merged)
+                self.compare_and_mark_nodes(
+                    current_container, container, merged)
 
         for key, container in current_containers.items():
             if key not in other_containers:
@@ -287,16 +290,17 @@ class Stack():
                 merged.composable.append(container)
 
         return merged
-    
+
     def compare_and_mark_nodes(self, current_container, other_container, merged):
-        current_nodes = {(n.namespace, n.name): n for n in current_container.nodes}
+        current_nodes = {(n.namespace, n.name)
+                          : n for n in current_container.nodes}
         other_nodes = {(n.namespace, n.name): n for n in other_container.nodes}
 
         for key, node in other_nodes.items():
             if key not in current_nodes:
                 node.action = STARTACTION
             else:
-                node.action = NOACTION 
+                node.action = NOACTION
 
         for key, node in current_nodes.items():
             if key not in other_nodes:
@@ -308,11 +312,10 @@ class Stack():
 
         # Add processed nodes back into their respective containers
         processed_container = other_container if other_container in merged.composable else current_container
-        processed_container.nodes = list(current_nodes.values()) + [n for n in other_nodes.values() if n.action == STARTACTION]
+        processed_container.nodes = list(current_nodes.values(
+        )) + [n for n in other_nodes.values() if n.action == STARTACTION]
         if processed_container not in merged.composable:
             merged.composable.append(processed_container)
-
-
 
     def _merge_params(self, merged, other):
         other_params = {param.name: param.value for param in other.param}
@@ -409,7 +412,7 @@ class Stack():
                 for exec_name, pid in e.items():
                     if n.exec in exec_name and n.action == STOPACTION:
                         intrspc.kill(exec_name, pid)
-                        
+
         # Kill composables
         for container in stack.composable:
             for cn in container.nodes:
@@ -454,7 +457,7 @@ class Stack():
         for p in self.param:
             manifest["param"].append(p.toManifest())
         for a in self.arg:
-            manifest["arg"].append(self.arg[a])
+            manifest["arg"].append(a.toManifest())
         for s in self.stack:
             manifest["stack"].append(s.toShallowManifest())
         for n in self.node:
@@ -488,12 +491,8 @@ class Stack():
         """
         active_nodes = [(active[1] if active[1] != '/' else '') +
                         '/' + active[0] for active in self.get_active_nodes()]
-        
-        for i in active_nodes:
-            print("ACTIVE NODES: ", i)
-        
-        should_node_run = f'/{node.namespace}/{node.name}' not in active_nodes 
-        print(f'/{node.namespace}/{node.name} should run: {should_node_run}')
+
+        should_node_run = f'/{node.namespace}/{node.name}' not in active_nodes
         return should_node_run
 
     def load_common_composables(self, container, launch_description: LaunchDescription):
@@ -504,14 +503,12 @@ class Stack():
         node_desc = []
         for cn in container.nodes:
             if cn.action == LOADACTION:
-                print(f"LOADING {cn.namespace}/{cn.name}")
                 node_desc.append(ComposableNode(
                     package=cn.pkg,
                     name=cn.name,
                     namespace=cn.namespace,
                     plugin=cn.plugin
                 ))
-        print(f'Node DESC: {node_desc}')
 
         if node_desc:
             load_action = LoadComposableNodes(
@@ -596,7 +593,7 @@ class Stack():
         all_nodes = self.node + [cn for c in self.composable for cn in c.nodes]
 
         # After nodes are launched, take care of managed node actions
-        self.handle_managed_nodes(all_nodes, verb='start')  
+        self.handle_managed_nodes(all_nodes, verb='start')
 
     def apply(self, launcher):
         """Apply the stack.
@@ -606,6 +603,14 @@ class Stack():
         """
         self.kill_diff(launcher, self)
         self.launch(launcher)
+
+    def has_expression(self, value):
+        """
+        Determines if a param value contains expression or not
+        Returns True if it contains an expression
+        Returns False if it doesn't contain an expression
+        """
+        return re.search(r'\$\((.*?)\)', str(value)) is not None
 
     def resolve_expression(self, value=""):
         """Resolve Muto expressions like find, arg, etc.
@@ -632,9 +637,9 @@ class Stack():
                 elif expr == 'optenv':
                     resolved_value = os.environ.get(var, '')
                 elif expr == 'arg':
-                    arg_value = self.arg.get(var)
-                    if arg_value is not None:
-                        resolved_value = arg_value['value']
+                    for a in self.arg:
+                        if var == a.name:
+                            resolved_value = a.value
                 elif expr == 'anon':
                     resolved_value = self.anon.get(var, var + uuid.uuid1().hex)
                     self.anon[var] = resolved_value
@@ -643,38 +648,11 @@ class Stack():
                         f"Value: {value} is not supported in Muto")
                 else:
                     continue
-
                 result = re.sub(
                     r'\$\(' + re.escape(expression) + r'\)', resolved_value, result, count=1)
             except KeyError:
                 raise Exception(f"{var} does not exist", 'param')
             except Exception as e:
                 print(f'Exception occurred: {e}')
-
-        return result
-
-    def resolve_param_expression(self, param={}):
-        name = ''
-        value = None
-        valKey = None
-        for k in param.keys():
-            if 'name' == k:
-                name = param['name']
-            else:
-                value = param[k]
-                valKey = k
-        if not valKey is None:
-            return (name, valKey, self.resolve_expression(value))
-        return None
-
-    def resolve_args(self, array=[]):
-        result = {}
-        self.arg = {}
-        for item in array:
-            name, key, value = self.resolve_param_expression(item)
-            p = {"name": name}
-            p[key] = value
-            result[name] = p
-            self.arg[name] = p
 
         return result
