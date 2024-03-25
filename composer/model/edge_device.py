@@ -31,7 +31,7 @@ class EdgeDevice:
         self.launcher = Ros2LaunchParent()
         self.definition = {}
         self.current_stack = Stack(
-            edge_device=self, node=self.node, manifest={})
+            node=self.node, manifest={})
         self.state = UNKNOWN
 
     def bootstrap(self):
@@ -52,7 +52,7 @@ class EdgeDevice:
             if definition == self.current_stack.manifest \
                     and definition.get('stackId', '') == self.current_stack.stackId:
                 self.current_stack = Stack(
-                    edge_device=self, node=self.node, manifest=definition)
+                    node=self.node, manifest=definition)
                 self.state = state
                 self.twin.set_current_stack(
                     self.current_stack, state=self.state)

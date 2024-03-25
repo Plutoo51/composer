@@ -15,7 +15,6 @@
 #
 #
 
-import subprocess
 import os
 import re
 import uuid
@@ -25,6 +24,7 @@ import composer.model.composable as composable
 import composer.model.arg as arg
 import rclpy
 from rclpy.node import Node
+from composer.twin import Twin
 from composer.introspection.introspector import Introspector
 from launch import LaunchDescription
 from launch_ros.actions import Node, LoadComposableNodes
@@ -41,7 +41,7 @@ LOADACTION = 'load'
 class Stack():
     """The class that contains all stack related operations (apply, kill, stack, merge etc.)"""
 
-    def __init__(self, edge_device, node: Node, manifest: dict = {}):
+    def __init__(self, node: Node, manifest: dict = {}):
         """Initialize the Stack object.
 
         Args:
@@ -51,7 +51,6 @@ class Stack():
         """
 
         self.manifest = manifest
-        self.edge_device = edge_device
         self.nnode = node  # Passed in ros node for logging purposes
         self.name = manifest.get('name', '')
         self.context = manifest.get('context', '')
@@ -91,9 +90,8 @@ class Stack():
                 composable.Container(self, cDef))
 
         for stackRef in referenced_stacks:
-            stackDef = self.edge_device.stack(stackRef['thingId'])
-            stack = Stack(self.edge_device,
-                          self.edge_device.node, stackDef)
+            stackDef = self.twin.stack(stackRef['thingId'])
+            stack = Stack(stackDef)
             self.stack.append(stack)
 
     def compare_nodes(self, other):
@@ -488,12 +486,11 @@ class Stack():
             launch_description (object): The launch description object.
         """
         for n in nodes:
-            if n.name == 'lifecycle_manager_localization':
-                for p in n.param:
-                    self.nnode.get_logger().info(
-                        f"lifecycle param: {p.name} : {p.value}")
+            for p in n.param:
                 self.nnode.get_logger().info(
-                    f"HANDLE REGULAR ros params for node: {n.namespace}/{n.name}: PARAM: {n.param}| ROSPARAM: {n.ros_params}")
+                    f"lifecycle param: {p.name} : {p.value}")
+            self.nnode.get_logger().info(
+                f"HANDLE REGULAR ros params for node: {n.namespace}/{n.name}: PARAM: {n.param}| ROSPARAM: {n.ros_params}")
 
             if n.action == STARTACTION or (n.action == NOACTION and self.should_node_run(n)):
                 launch_description.add_action(Node(

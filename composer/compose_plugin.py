@@ -19,7 +19,6 @@ import rclpy
 from rclpy.node import Node
 from composer.model.stack import Stack
 from composer.twin import Twin
-from composer.model.edge_device import EdgeDevice
 from muto_msgs.srv import ComposePlugin
 from muto_msgs.msg import PluginResponse, StackManifest, PlanManifest
 
@@ -50,7 +49,6 @@ class MutoDefaultComposePlugin(Node):
 
         self.twin = Twin(node='muto_compose_plugin',
                          config=self.muto)
-        self.edge_device = EdgeDevice(self, twin=self.twin)
 
     def _init_services(self):
         self.create_service(ComposePlugin, "muto_compose", self.handle_compose)
@@ -64,7 +62,7 @@ class MutoDefaultComposePlugin(Node):
         :return: The service response with the composition result.
         """
         plan = req.input
-        current_stack = Stack(edge_device=self.edge_device, node=self,
+        current_stack = Stack(node=self,
                               manifest=json.loads(plan.current.stack))
         next_stack_manifest = json.loads(plan.next.stack)
 
@@ -89,7 +87,7 @@ class MutoDefaultComposePlugin(Node):
         """
         if 'stackId' in manifest:
             manifest = self.twin.stack(manifest['stackId'])
-        return Stack(self.edge_device, self, manifest)
+        return Stack(node=self, manifest=manifest)
 
     def _create_plan_manifest(self, plan: PlanManifest, merged_manifest: dict):
         """
