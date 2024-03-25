@@ -52,6 +52,7 @@ class Stack():
 
         self.manifest = manifest
         self.nnode = node  # Passed in ros node for logging purposes
+        self.twin = Twin(self.nnode, self.nnode.muto)
         self.name = manifest.get('name', '')
         self.context = manifest.get('context', '')
         self.stackId = manifest.get('stackId', '')
@@ -64,7 +65,7 @@ class Stack():
         if self.name and self.manifest and self.stackId:
             self.initialize()
         else:
-            self.nnode.get_logger().info("Cannot initialize an empty stack")
+            self.nnode.get_logger().warn("Empty stack initialization requested. Ignoring...")
 
     def initialize(self):
         """Initialize the stack elements (nodes, composable nodes, parameters etc.)"""
@@ -239,7 +240,7 @@ class Stack():
             Stack: The merged stack object.
         """
 
-        merged = Stack(self.edge_device, self.edge_device.node,
+        merged = Stack(node=None,
                        manifest={})
         self.nnode.get_logger().info(
             f"IN MERGE. Edge device has the current stack {self.edge_device.current_stack} | and the other stack is: {other.stackId}")

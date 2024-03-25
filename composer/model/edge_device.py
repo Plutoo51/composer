@@ -35,13 +35,14 @@ class EdgeDevice:
         self.state = UNKNOWN
 
     def bootstrap(self):
-        self.node.get_logger().info("Edge Device boostrapping...")
         try:
+            self.node.get_logger().info("Edge Device boostrapping")
             current_definition = self.twin.get_current_stack().get('current', {})
             stack_id = current_definition.get('stackId')
             self.definition = self.stack(stack_id)
             self.state = current_definition.get('state', UNKNOWN)
             self._update_current_stack(self.definition, self.state)
+            self.node.get_logger().info("Edge Device boostrap done")
 
         except Exception as e:
             self._handle_exception('bootstrapping', e)
