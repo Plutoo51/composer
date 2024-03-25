@@ -24,6 +24,7 @@ import composer.model.param as param
 import composer.model.composable as composable
 import composer.model.arg as arg
 import rclpy
+from rclpy.node import Node
 from composer.introspection.introspector import Introspector
 from launch import LaunchDescription
 from launch_ros.actions import Node, LoadComposableNodes
@@ -40,7 +41,7 @@ LOADACTION = 'load'
 class Stack():
     """The class that contains all stack related operations (apply, kill, stack, merge etc.)"""
 
-    def __init__(self, edge_device, manifest={}, parent=None):
+    def __init__(self, edge_device, node: Node, manifest: dict = {}):
         """Initialize the Stack object.
 
         Args:
@@ -50,19 +51,26 @@ class Stack():
         """
 
         self.manifest = manifest
-        self.parent = parent
         self.edge_device = edge_device
+        self.nnode = node  # Passed in ros node for logging purposes
         self.name = manifest.get('name', '')
         self.context = manifest.get('context', '')
         self.stackId = manifest.get('stackId', '')
         self.param = manifest.get('param', [])
         self.arg = manifest.get('arg', [])
-        self.initialize()
+        self.node = []
+        self.stack = []
+        self.composable = []
+
+        if self.name and self.manifest and self.stackId:
+            self.initialize()
+        else:
+            self.nnode.get_logger().info("Cannot initialize an empty stack")
 
     def initialize(self):
         """Initialize the stack elements (nodes, composable nodes, parameters etc.)"""
-
-        self.stack = []
+        self.nnode.get_logger().info(
+            f"INITIALIZING STACK: name: {self.name} stackID: {self.stackId} manifest: {self.manifest}")
         referenced_stacks = self.manifest.get('stack', [])
 
         args = []
@@ -75,24 +83,19 @@ class Stack():
             params.append(param.Param(self, pDef))
         self.param = params
 
+        for nDef in self.manifest.get('node', []):
+            self.node.append(node.Node(self, nDef))
+
+        for cDef in self.manifest.get('composable', []):
+            self.composable.append(
+                composable.Container(self, cDef))
+
         for stackRef in referenced_stacks:
             stackDef = self.edge_device.stack(stackRef['thingId'])
-            stack = Stack(self.edge_device, stackDef, self)
+            stack = Stack(self.edge_device,
+                          self.edge_device.node, stackDef)
             self.stack.append(stack)
 
-        self.node = []
-        for nDef in self.manifest.get('node', []):
-            sn = node.Node(self, nDef)
-            self.node.append(sn)
-
-        self.composable = []
-        for cDef in self.manifest.get('composable', []):
-            sn = composable.Container(self, cDef)
-            self.composable.append(sn)
-
-        
-
-        
     def compare_nodes(self, other):
         """Compare the nodes of the stack with another stack.
 
@@ -149,7 +152,8 @@ class Stack():
                 s.flatten_nodes(list)
             return list
         except Exception as e:
-            print(f'Exception occured in flatten_nodes: {e}')
+            self.nnode.get_logger().info(
+                f'Exception occured in flatten_nodes: {e}')
 
     def flatten_composable(self, list):
         """Flatten the nested structure of composable nodes in the stack.
@@ -168,7 +172,8 @@ class Stack():
                 s.flatten_composable(list)
             return list
         except Exception as e:
-            print(f'Exception occured in flatten_composable: {e}')
+            self.nnode.get_logger().info(
+                f'Exception occured in flatten_composable: {e}')
 
     def calculate_ros_params_differences(self, current, other):
         """Calculate differences in ROS parameters between nodes of the current stack and another stack.
@@ -236,12 +241,14 @@ class Stack():
             Stack: The merged stack object.
         """
 
-        merged = Stack(self.edge_device, manifest={}, parent=None)
+        merged = Stack(self.edge_device, self.edge_device.node,
+                       manifest={})
+        self.nnode.get_logger().info(
+            f"IN MERGE. Edge device has the current stack {self.edge_device.current_stack} | and the other stack is: {other.stackId}")
         self._merge_attributes(merged, other)
         self._merge_nodes(merged, other)
         self._merge_composables(merged, other)
         self._merge_params(merged, other)
-        self._handle_different_stacks(merged, other)
 
         merged.manifest = merged.toManifest()
         return merged
@@ -265,8 +272,7 @@ class Stack():
     def _merge_composables(self, merged, other):
         merged.composable = []
 
-        current_containers = {(c.namespace, c.name)
-                               : c for c in self.composable}
+        current_containers = {(c.namespace, c.name): c for c in self.composable}
         other_containers = {(c.namespace, c.name): c for c in other.composable}
 
         # Process added and removed containers
@@ -292,8 +298,7 @@ class Stack():
         return merged
 
     def compare_and_mark_nodes(self, current_container, other_container, merged):
-        current_nodes = {(n.namespace, n.name)
-                          : n for n in current_container.nodes}
+        current_nodes = {(n.namespace, n.name): n for n in current_container.nodes}
         other_nodes = {(n.namespace, n.name): n for n in other_container.nodes}
 
         for key, node in other_nodes.items():
@@ -334,58 +339,6 @@ class Stack():
         n.destroy_node()
         return n_list
 
-    def _handle_different_stacks(self, merged, other):
-        """Handle differences between stacks during merge.
-
-        Args:
-            merged (Stack): The merged stack object.
-            other (Stack): The other stack object.
-        """
-        try:
-            referenced_stacks = self.manifest.get('stack', [])
-            other_referenced_stacks = other.manifest.get('stack', [])
-            self.different_stacks = self._identify_different_stacks(
-                referenced_stacks, other_referenced_stacks)
-
-            for stack_pair in self.different_stacks:
-                param_difference = self.calculate_ros_params_differences(
-                    stack_pair[0], stack_pair[1])
-                self.change_params_at_runtime(param_difference)
-
-            param_difference = self.calculate_ros_params_differences(
-                other, self)
-            # TODO move param change to launch phase
-            self.change_params_at_runtime(param_difference)
-        except Exception as e:
-            print(
-                f"Exception while calculating parameter difference between stacks: {e}")
-
-    def _identify_different_stacks(self, referenced_stacks, other_referenced_stacks):
-        """Identify different stacks between referenced stacks and other referenced stacks.
-
-        Args:
-            referenced_stacks (list): List of referenced stacks.
-            other_referenced_stacks (list): List of referenced stacks from another stack.
-
-        Returns:
-            list: List of different stacks.
-        """
-        different_stacks = []
-        for i in other_referenced_stacks:
-            if i not in referenced_stacks:
-                different_stackDef = self.edge_device.stack(i['thingId'])
-                different_stack = Stack(
-                    self.edge_device, different_stackDef, self)
-                for j in referenced_stacks:
-                    if j not in other_referenced_stacks:
-                        different_stack_def2 = self.edge_device.stack(
-                            j['thingId'])
-                        different_stack2 = Stack(
-                            self.edge_device, different_stack_def2, self)
-                        different_stacks.append(
-                            [different_stack, different_stack2])
-        return different_stacks
-
     def kill_all(self, launcher):
         """Kill all active nodes which were launched by Muto.
 
@@ -421,21 +374,6 @@ class Stack():
                         if cn.exec in exec_name and cn.action == STOPACTION:
                             intrspc.kill(exec_name, pid)
 
-    def change_params_at_runtime(self, param_differences):
-        """Change parameters at runtime based on differences.
-        ### TODO: replace with set param service call
-        Args:
-            param_differences (dict): Dictionary containing parameter differences.
-        """
-        try:
-            for key, val in param_differences.items():
-                for i in range(len(val)):
-                    subprocess.run(['ros2', 'param', 'set', str(key[0]), str(
-                        val[i]['key']), str(val[i]['in_node1'])])
-        except Exception as e:
-            print(
-                f'Exception occurred while changing parameters at runtime: {e}')
-
     def toShallowManifest(self):
         manifest = {"name": self.name,
                     "context": self.context,
@@ -454,12 +392,13 @@ class Stack():
             dict: Manifest dictionary representing the stack.
         """
         manifest = self.toShallowManifest()
+
+        for s in self.stack:
+            manifest["stack"].append(s.toShallowManifest())
         for p in self.param:
             manifest["param"].append(p.toManifest())
         for a in self.arg:
             manifest["arg"].append(a.toManifest())
-        for s in self.stack:
-            manifest["stack"].append(s.toShallowManifest())
         for n in self.node:
             manifest["node"].append(n.toManifest())
         for c in self.composable:
@@ -549,6 +488,13 @@ class Stack():
             launch_description (object): The launch description object.
         """
         for n in nodes:
+            if n.name == 'lifecycle_manager_localization':
+                for p in n.param:
+                    self.nnode.get_logger().info(
+                        f"lifecycle param: {p.name} : {p.value}")
+                self.nnode.get_logger().info(
+                    f"HANDLE REGULAR ros params for node: {n.namespace}/{n.name}: PARAM: {n.param}| ROSPARAM: {n.ros_params}")
+
             if n.action == STARTACTION or (n.action == NOACTION and self.should_node_run(n)):
                 launch_description.add_action(Node(
                     package=n.pkg,
@@ -577,7 +523,7 @@ class Stack():
         """Launch the stack.
 
         Args:
-            launcher (object): The launcher object.
+            launcher (Ros2LaunchParent object): The launcher object.
         """
         launch_description = LaunchDescription()
 
@@ -586,25 +532,26 @@ class Stack():
                 self.composable, launch_description, launcher)
             self.handle_regular_nodes(self.node, launch_description, launcher)
 
+            launcher.start(launch_description)
+            all_nodes = self.node + \
+                [cn for c in self.composable for cn in c.nodes]
+
+            # After nodes are launched, take care of managed node actions (configure, activate etc.)
+            self.handle_managed_nodes(all_nodes, verb='start')
         except Exception as e:
-            print(f'Stack launching ended with exception: {e}')
-
-        launcher.start(launch_description)
-        all_nodes = self.node + [cn for c in self.composable for cn in c.nodes]
-
-        # After nodes are launched, take care of managed node actions
-        self.handle_managed_nodes(all_nodes, verb='start')
+            self.nnode.get_logger().info(
+                f'Stack launching ended with exception: {e}')
 
     def apply(self, launcher):
         """Apply the stack.
 
         Args:
-            launcher (object): The launcher object.
+            launcher (Ros2LaunchParent object): The launcher object.
         """
         self.kill_diff(launcher, self)
         self.launch(launcher)
 
-    def has_expression(self, value):
+    def has_expression(self, value: str=""):
         """
         Determines if a param value contains expression or not
         Returns True if it contains an expression
@@ -612,7 +559,7 @@ class Stack():
         """
         return re.search(r'\$\((.*?)\)', str(value)) is not None
 
-    def resolve_expression(self, value=""):
+    def resolve_expression(self, value: str=""):
         """Resolve Muto expressions like find, arg, etc.
 
         Args:
@@ -621,6 +568,9 @@ class Stack():
         Returns:
             str: The resolved value.
         """
+        if not self.has_expression(value):
+            return value
+
         value = str(value)
         expressions = re.findall(r'\$\(([\s0-9a-zA-Z_-]+)\)', value)
         result = value
@@ -653,6 +603,6 @@ class Stack():
             except KeyError:
                 raise Exception(f"{var} does not exist", 'param')
             except Exception as e:
-                print(f'Exception occurred: {e}')
+                self.nnode.get_logger().info(f'Exception occurred: {e}')
 
         return result

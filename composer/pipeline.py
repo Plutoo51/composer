@@ -53,7 +53,6 @@ class Pipeline(Node):
         :param current: The current stack configuration.
         :param next: The next stack configuration to apply.
         """
-        self.get_logger().info(f'Executing pipeline for command: {command}')
         cstack = StackManifest(type="json", stack=json.dumps(current))
         pstack = StackManifest(type="json", stack=json.dumps(next))
         plan = PlanManifest(current=cstack, next=pstack, pipeline=command)
@@ -99,7 +98,7 @@ class Pipeline(Node):
 
         :param plan: The plan manifest for the compensation execution.
         """
-        self.get_logger().info('Executing compensation steps')
+        self.get_logger().warn('Executing compensation steps')
         for step in self.compensation:
             try:
                 self.execute_step(plan, step)

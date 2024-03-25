@@ -14,13 +14,14 @@
 #    Composiv.ai, Eteration A.S. - initial API and implementation
 #
 #
+from composer.model.edge_device import EdgeDevice
 
 class Router:
     """
     Routes actions to the appropriate pipeline for execution based on the provided action and payload.
     """
 
-    def __init__(self, device, pipelines):
+    def __init__(self, device: EdgeDevice, pipelines: dict):
         """
         Initializes the Router with a device and a set of pipelines.
 
@@ -30,14 +31,13 @@ class Router:
         self.device = device
         self.pipelines = pipelines
 
-    def route(self, action, payload):
+    def route(self, action: str, payload: dict):
         """
         Routes the given action and payload to the appropriate pipeline for execution.
 
         :param action: The action to be executed, which corresponds to a key in the pipelines dictionary.
         :param payload: The payload associated with the action, typically representing the desired state or configuration.
         """
-        print(f"Routing action: {action} with payload: {payload}")
 
         pipeline = self.pipelines.get(action)
         if pipeline is not None:
@@ -46,4 +46,4 @@ class Router:
             manifest = current_stack.manifest if current_stack else {}
             pipeline.execute(action, manifest, payload)
         else:
-            print(f"No pipeline found for action: {action}")
+            self.device.node.get_logger().info(f"No pipeline found for action: {action}")

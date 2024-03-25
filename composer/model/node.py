@@ -16,13 +16,14 @@
 #
 
 import os
-import composer.model.param as param
-from lifecycle_msgs.msg import Transition, State
-from lifecycle_msgs.srv import GetState, GetAvailableTransitions, GetAvailableStates, ChangeState
 import rclpy
+import composer.model.param as param
+from lifecycle_msgs.msg import Transition
+from lifecycle_msgs.srv import ChangeState
+
 
 class Node:
-    def __init__(self, stack, manifest={}, container=None):
+    def __init__(self, stack, manifest: dict = {}, container=None):
         if manifest is None:
             manifest = {}
 
@@ -32,7 +33,9 @@ class Node:
         self.env = manifest.get('env', [])
         self.name = manifest.get('name', '')
         self.ros_params = []
-        self.param = [param.Param(stack, pDef, self) for pDef in manifest.get('param', [])]
+        self.namespace = manifest.get('namespace', os.getenv('MUTONS', ''))
+        self.param = [param.Param(stack, pDef, self)
+                      for pDef in manifest.get('param', [])]
         self.remap = manifest.get('remap', [])
         self.pkg = manifest.get('pkg', '')
         self.exec = manifest.get('exec', '')
@@ -40,7 +43,6 @@ class Node:
         self.lifecycle = manifest.get('lifecycle', '')
         self.ros_args = manifest.get('ros_args', '')
         self.args = stack.resolve_expression(manifest.get('args', ''))
-        self.namespace = manifest.get('namespace', os.getenv('MUTONS', ''))
         self.launch_prefix = manifest.get('launch-prefix', None)
         self.output = manifest.get('output', 'both')
         self.iff = manifest.get('if', '')
@@ -48,10 +50,17 @@ class Node:
         self.action = manifest.get('action', '')
 
         for p in self.param:
+            self.stack.nnode.get_logger().info(
+                f"self.param for node: {self.namespace}/{self.name} is: {p.name}:{p.value}")
+        for p in self.param:
             if p.name is not None and p.value is not None:
-                self.ros_params.append({p.name :p.value})
-        
-        self.remap_args = [(stack.resolve_expression(rm['from']), stack.resolve_expression(rm['to'])) for rm in self.remap]
+                self.ros_params.append({p.name: p.value})
+        for p in self.ros_params:
+            self.stack.nnode.get_logger().info(
+                f"ros params for node: {self.name}: {p}")
+
+        self.remap_args = [(stack.resolve_expression(
+            rm['from']), stack.resolve_expression(rm['to'])) for rm in self.remap]
 
     def toManifest(self):
         """Converts the node object back into a manifest dictionary."""
@@ -73,56 +82,28 @@ class Node:
             "unless": self.unless,
             "action": self.action
         }
-    
-    def change_state(self, verbs=[]):
+
+    def change_state(self, verbs: list=[]):
         if self.lifecycle:
             temporary_node = rclpy.create_node('change_state_node')
-            state_cli = temporary_node.create_client(ChangeState, f'/{self.namespace}/{self.name}/change_state')
+            state_cli = temporary_node.create_client(
+                ChangeState, f'/{self.namespace}/{self.name}/change_state')
             while not state_cli.wait_for_service(timeout_sec=1.0):
-                temporary_node.get_logger().warn('Lifecycle change state service not available. Waiting...')
-            
+                temporary_node.get_logger().warn(
+                    'Lifecycle change state service not available. Waiting...')
+
             for verb in verbs:
                 request = ChangeState.Request()
                 t = Transition()
                 t.label = verb
                 request.transition = t
                 future = state_cli.call_async(request)
-                rclpy.spin_until_future_complete(temporary_node, future, timeout_sec=3.0)
+                rclpy.spin_until_future_complete(
+                    temporary_node, future, timeout_sec=3.0)
             temporary_node.destroy_node()
         else:
-            print(f"{self.name} is Not a managed node")
-
-
-    def get_state(self):
-        if self.lifecycle:
-            temporary_node = rclpy.create_node('get_state_node')
-            state_cli = temporary_node.create_client(GetState, f'/{self.namespace}/{self.name}/get_state')
-            while not state_cli.wait_for_service(timeout_sec=1.0):
-                temporary_node.get_logger().warn('Lifecycle get state service not available. Waiting...')
-            request = GetState.Request()
-            future = state_cli.call_async(request)
-            rclpy.spin_until_future_complete(temporary_node, future, timeout_sec=3.0)
-            temporary_node.destroy_node()
-            return future.result()
-        else:
-            print(f"{self.name} is Not a managed node")
-
-    def get_available_states(self):
-        if self.lifecycle:
-            temporary_node = rclpy.create_node('get_available_states_node')
-            state_cli = temporary_node.create_client(GetAvailableStates, f'/{self.namespace}/{self.name}/get_available_states')
-            while not state_cli.wait_for_service(timeout_sec=1.0):
-                temporary_node.get_logger().warn('Lifecycle get_available_states service not available. Waiting...')
-            request = GetAvailableStates.Request()
-            response = GetAvailableStates.Response()
-            future = state_cli.call_async(request)
-            rclpy.spin_until_future_complete(temporary_node, future, timeout_sec=3.0)
-            response = future.result()
-            temporary_node.destroy_node()
-            return response.available_states
-        else:
-            print(f"{self.name} is Not a managed node")
-
+            self.stack.nnode.get_logger().warn(
+                f"{self.name} is Not a managed node")
 
     def __eq__(self, other):
         """Checks if two Node objects are equal based on their attributes."""

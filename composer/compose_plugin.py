@@ -23,10 +23,12 @@ from composer.model.edge_device import EdgeDevice
 from muto_msgs.srv import ComposePlugin
 from muto_msgs.msg import PluginResponse, StackManifest, PlanManifest
 
+
 class MutoDefaultComposePlugin(Node):
     """
     Default composition plugin node for handling stack compositions
     """
+
     def __init__(self):
         super().__init__("compose_plugin")
         self._init_parameters()
@@ -43,15 +45,17 @@ class MutoDefaultComposePlugin(Node):
         }
         for param, value in params.items():
             self.declare_parameter(param, value)
-        self.muto = {param: self.get_parameter(param).value for param in params}
+        self.muto = {param: self.get_parameter(
+            param).value for param in params}
 
-        self.twin = Twin(node='muto_compose_plugin', config=self.muto, publisher=None)
-        self.edge_device = EdgeDevice(twin=self.twin)
+        self.twin = Twin(node='muto_compose_plugin',
+                         config=self.muto)
+        self.edge_device = EdgeDevice(self, twin=self.twin)
 
     def _init_services(self):
         self.create_service(ComposePlugin, "muto_compose", self.handle_compose)
 
-    def handle_compose(self, req, res):
+    def handle_compose(self, req: PlanManifest, res: PlanManifest):
         """
         Handles composition requests, merging current and next stack definitions.
 
@@ -60,16 +64,23 @@ class MutoDefaultComposePlugin(Node):
         :return: The service response with the composition result.
         """
         plan = req.input
-        current_stack = Stack(self.edge_device, json.loads(plan.current.stack), None)
+        current_stack = Stack(edge_device=self.edge_device, node=self,
+                              manifest=json.loads(plan.current.stack))
         next_stack_manifest = json.loads(plan.next.stack)
 
         next_stack = self._get_next_stack(next_stack_manifest)
-        merged = current_stack.merge(next_stack)
+
+        if current_stack.stackId and next_stack.stackId:
+            merged = current_stack.merge(next_stack)
+        else:
+            print(
+                f"Current stack: {current_stack.stackId} | Next stack: {next_stack.stackId}. One of the stacks is missing. Stacks cannot be merged")
+            merged = current_stack
 
         res.output = self._create_plan_manifest(plan, merged.manifest)
         return res
 
-    def _get_next_stack(self, manifest):
+    def _get_next_stack(self, manifest: dict):
         """
         Retrieves the next stack based on its manifest, handling direct definitions or references by ID.
 
@@ -78,9 +89,9 @@ class MutoDefaultComposePlugin(Node):
         """
         if 'stackId' in manifest:
             manifest = self.twin.stack(manifest['stackId'])
-        return Stack(self.edge_device, manifest, None)
+        return Stack(self.edge_device, self, manifest)
 
-    def _create_plan_manifest(self, plan, merged_manifest):
+    def _create_plan_manifest(self, plan: PlanManifest, merged_manifest: dict):
         """
         Creates a PlanManifest message from the current and next plans, and the merged manifest.
 
@@ -92,9 +103,12 @@ class MutoDefaultComposePlugin(Node):
             current=plan.current,
             next=plan.next,
             pipeline=plan.pipeline,
-            planned=StackManifest(type="json", stack=json.dumps(merged_manifest)),
-            result=PluginResponse(result_code=0, error_message="", error_description="")
+            planned=StackManifest(
+                type="json", stack=json.dumps(merged_manifest)),
+            result=PluginResponse(
+                result_code=0, error_message="", error_description="")
         )
+
 
 def main():
     rclpy.init()
@@ -102,6 +116,7 @@ def main():
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
+
 
 if __name__ == "__main__":
     main()

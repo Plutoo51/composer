@@ -19,7 +19,6 @@ import subprocess
 import shlex
 import yaml
 import traceback
-import re
 import composer.model.stack as Stack
 import composer.model.node as Node
 
@@ -37,7 +36,7 @@ class Param:
         self.from_file = manifest.get('from', '')
         self.command = manifest.get('command', '')
 
-    def _resolve_value(self, manifest):
+    def _resolve_value(self, manifest: dict = {}):
         """Resolve the value of the parameter from various sources."""
         value = manifest.get('value', '')
         if 'from' in manifest:
@@ -45,16 +44,18 @@ class Param:
         if 'command' in manifest:
             return self._execute_command(self.stack.resolve_expression(manifest['command']))
         if self.stack.has_expression(value):
-            parsed = self._resolve_param_expression(manifest.get('value', ''))
-            print(parsed)
-            return parsed
-        return self._parse_value(value)
+            return self._resolve_param_expression(manifest.get('value', ''))
+        if isinstance(value, str) \
+                or isinstance(value, int) \
+                or isinstance(value, float):
+            return self._parse_value(value)
+        return value
 
-    def _resolve_param_expression(self, value):
+    def _resolve_param_expression(self, value: str | int | float):
         """Resolve param expressions like find, arg, etc."""
         return self.stack.resolve_expression(value)
 
-    def _resolve_from_file(self, filepath):
+    def _resolve_from_file(self, filepath: str):
         """Fetch and return the content of the specified file."""
         try:
             with open(filepath, 'r') as file:
@@ -65,6 +66,7 @@ class Param:
 
                 matching_key = None
                 for key in yaml_contents.keys():
+                    # FIXME: Resolve namespace here to match the node name in YAML
                     if key == self.node.name:
                         matching_key = key
                         break
@@ -80,38 +82,41 @@ class Param:
                         self.node.ros_params.append({key: value})
 
         except FileNotFoundError as e:
-            print(f"File not found error: {e}")
+            self.stack.nnode.get_logger().error(f"File not found error: {e}")
         except PermissionError as e:
-            print(f"Permission error while reading file '{filepath}': {e}")
+            self.stack.nnode.get_logger().error(
+                f"Permission error while reading file '{filepath}': {e}")
         except yaml.YAMLError as e:
-            print(f"YAML error while reading file '{filepath}': {e}")
+            self.stack.nnode.get_logger().error(
+                f"YAML error while reading file '{filepath}': {e}")
         except BaseException as e:
             traceback.print_exc()
-            print(f"Failed to read from file '{filepath}': {e}")
+            self.stack.nnode.get_logger().error(
+                f"Failed to read from file '{filepath}': {e}")
         return None
 
-    def _execute_command(self, command):
+    def _execute_command(self, command: str = ""):
         """Execute the specified command and return its output."""
         try:
             return subprocess.check_output(shlex.split(command), text=True).strip()
         except subprocess.CalledProcessError as e:
-            print(f"Command execution failed: {e}")
+            self.stack.nnode.get_logger().error(
+                f"Command execution failed: {e}")
             return None
 
-    def _parse_value(self, value):
+    def _parse_value(self, value: str = ""):
         """Parse the given value into the appropriate data type."""
-        if isinstance(value, str):
-            if value.lower() == 'true':
-                return True
-            if value.lower() == 'false':
-                return False
+        if value.lower() == 'true':
+            return True
+        if value.lower() == 'false':
+            return False
+        try:
+            return int(value)
+        except ValueError:
             try:
-                return int(value)
+                return float(value)
             except ValueError:
-                try:
-                    return float(value)
-                except ValueError:
-                    return value
+                return value
         return value
 
     def toManifest(self):

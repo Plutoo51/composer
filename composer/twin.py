@@ -17,6 +17,7 @@
 import json
 import uuid
 import requests
+from rclpy.node import Node
 
 INFO = 'INFO'
 WARN = 'WARN'
@@ -28,18 +29,20 @@ class Twin():
     The class that handles Muto Digital Twin
     """
 
-    def __init__(self, node, config, publisher=None):
+    def __init__(self, node: Node, config: dict):
+        self.node = node
         self.twin_url = config['twin_url']
-        self.publisher = publisher
         self.namespace = config.get("namespace", "")
         self.name = config.get("name", "")
         self.thingId = self.namespace + ":" + self.name
-        self.requested_stacks = []
-        
-        # unique_name = config.get(
-            # "uniqueName",  config['type']+"."+str(uuid.uuid4()))
-        # self._unique_name = unique_name
 
+        # FIXME: handle the case where if the stack changes at runtime,
+        #the requested stacks should be updated (might be through agent)
+        self.requested_stacks = []
+
+        # unique_name = config.get(
+        # "uniqueName",  config['type']+"."+str(uuid.uuid4()))
+        # self._unique_name = unique_name
 
     def get_current_stack(self):
         return self.stack(self.thingId)
@@ -56,8 +59,6 @@ class Twin():
             if not stack_id is None:
                 r = requests.put(self.twin_url + "/api/2/things/{}/features/stack/properties/current".format(self.thingId),
                                  headers=headers, json={"stackId": stack_id, "state": state})
-                print(
-                    f"Setting stack ended for stack {stack_id} with status code: {r.status_code}")
                 return
 
             stacks = deftn.get('stack', [])
@@ -66,8 +67,6 @@ class Twin():
                 if id:
                     r = requests.post(self.twin_url + "/api/2/things/{}/features/stack/properties/current".format(self.thingId),
                                       headers=headers, json={"stackId": id, "state": state})
-                    print(
-                        f"Setting stack ended for stack {stack_id} with status code: {r.status_code}")
         except Exception as e:
             print(f"Setting stack ended with exception: {e}")
 
@@ -79,8 +78,6 @@ class Twin():
                     return prop
             r = requests.get(self.twin_url + '/api/2/things/' +
                              thingId + '/features/stack')
-            print(
-                f"Stack getting for {thingId} from repo ended with status code: {r.status_code}")
             if r.status_code >= 300:
                 return {}
             payload = json.loads(r.text)

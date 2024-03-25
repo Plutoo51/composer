@@ -27,6 +27,7 @@ from composer.model.edge_device import EdgeDevice
 from rclpy.node import Node
 from ament_index_python.packages import get_package_share_directory
 
+
 class MutoComposer(Node):
     def __init__(self):
         super().__init__("muto_composer")
@@ -37,16 +38,17 @@ class MutoComposer(Node):
     def _init_parameters(self):
         """Declare and retrieve node parameters."""
         params = {
-        "name": "example-01",
-        "namespace": "org.eclipse.muto.sandbox",
-        "stack_topic": "stack",
-        "twin_topic": "twin",
-        "anonymous": False,
-        "twin_url": "http://ditto:ditto@sandbox.composiv.ai"
+            "name": "example-01",
+            "namespace": "org.eclipse.muto.sandbox",
+            "stack_topic": "stack",
+            "twin_topic": "twin",
+            "anonymous": False,
+            "twin_url": "http://ditto:ditto@sandbox.composiv.ai"
         }
         for param, default in params.items():
             self.declare_parameter(param, default)
-        self.muto = {param: self.get_parameter(param).value for param in params}
+        self.muto = {param: self.get_parameter(
+            param).value for param in params}
         self.twin_topic = self.muto['twin_topic']
         self.stack_topic = self.muto['stack_topic']
 
@@ -59,15 +61,18 @@ class MutoComposer(Node):
         with open(pipeline_file_path, "r") as f:
             self.pipelines = yaml.safe_load(f)["pipelines"]
 
-        self.twin_publisher = self.create_publisher(String, self.twin_topic, 10)
-        self.create_subscription(MutoAction, self.stack_topic, self.on_stack_callback, 10)
+        self.twin_publisher = self.create_publisher(
+            String, self.twin_topic, 10)
+        self.create_subscription(
+            MutoAction, self.stack_topic, self.on_stack_callback, 10)
 
     def _bootstrap(self):
         """Bootstrap the edge device, twin and pipelines."""
         try:
-            self.twin = Twin(node='muto_composer', config=self.muto, publisher=self.twin_publisher)
-            self.edge_device = EdgeDevice(twin=self.twin)
-            self._init_pipelines()  
+            self.twin = Twin(node='muto_composer',
+                             config=self.muto)
+            self.edge_device = EdgeDevice(node=self, twin=self.twin)
+            self._init_pipelines()
             self.edge_device.bootstrap()
             self.router = Router(self.edge_device, self.pipelines)
         except Exception as e:
@@ -75,20 +80,21 @@ class MutoComposer(Node):
 
     def _init_pipelines(self):
         """Initialize pipelines from configuration loaded from YAML."""
-        loaded_pipelines = {} 
+        loaded_pipelines = {}
 
         for pipeline_item in self.pipelines:
             name = pipeline_item["name"]
             pipeline_spec = pipeline_item["pipeline"]
             compensation_spec = pipeline_item.get("compensation", None)
-            
+
             # Create a Pipeline object for each pipeline item
-            pipeline = Pipeline(self.edge_device, name, pipeline_spec, compensation_spec)
+            pipeline = Pipeline(self.edge_device, name,
+                                pipeline_spec, compensation_spec)
             loaded_pipelines[name] = pipeline
 
         self.pipelines = loaded_pipelines
 
-    def on_stack_callback(self, msg):
+    def on_stack_callback(self, msg: MutoAction):
         """
         Handle incoming MutoAction messages to route stack actions.
 
@@ -99,9 +105,12 @@ class MutoComposer(Node):
                 stack = json.loads(msg.payload)["value"]
                 self.router.route(msg.method, stack)
             except KeyError as k:
-                self.get_logger().error(f"Payload is not in the expected format: {k}")
+                self.get_logger().error(
+                    f"Payload is not in the expected format: {k}")
             except Exception as e:
-                self.get_logger().error(f"Invalid payload coming to muto composer: {e}")
+                self.get_logger().error(
+                    f"Invalid payload coming to muto composer: {e}")
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -109,6 +118,7 @@ def main(args=None):
     rclpy.spin(muto_composer_node)
     muto_composer_node.destroy_node()
     rclpy.shutdown()
+
 
 if __name__ == "__main__":
     main()

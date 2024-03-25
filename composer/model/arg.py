@@ -15,6 +15,8 @@
 #
 #
 
+
+
 class Arg(object):
     def __init__(self, stack, manifest={}):
         self.stack = stack
@@ -28,7 +30,7 @@ class Arg(object):
                     "default": self.default, "description": self.description}
         return manifest
 
-    def resolve_arg(self, val):
+    def resolve_arg(self, val: str | int | float):
         if self.stack.has_expression(val):
             return self.stack.resolve_expression(val)
         return val

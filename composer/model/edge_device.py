@@ -17,46 +17,53 @@
 
 from composer.model.stack import Stack
 from composer.introspection.launcher import Ros2LaunchParent
+from rclpy.node import Node
 
 UNKNOWN = 'unknown'
 ACTIVE = 'active'
 KILLED = 'killed'
 
+
 class EdgeDevice:
-    def __init__(self, twin):
+    def __init__(self, node: Node = None, twin=None):
         self.twin = twin
-        self.definition = None
-        self.state = UNKNOWN  
-        self.current_stack = None
+        self.node = node
         self.launcher = Ros2LaunchParent()
+        self.definition = {}
+        self.current_stack = Stack(
+            edge_device=self, node=self.node, manifest={})
+        self.state = UNKNOWN
+
+    def bootstrap(self):
+        self.node.get_logger().info("Edge Device boostrapping...")
+        try:
+            current_definition = self.twin.get_current_stack().get('current', {})
+            stack_id = current_definition.get('stackId')
+            self.definition = self.stack(stack_id)
+            self.state = current_definition.get('state', UNKNOWN)
+            self._update_current_stack(self.definition, self.state)
+
+        except Exception as e:
+            self._handle_exception('bootstrapping', e)
 
     def _update_current_stack(self, definition=None, state=UNKNOWN):
         """Helper method to update the current stack based on the provided definition and state."""
-        if definition is not None:
-            self.current_stack = Stack(self, definition, None)
-        self.state = state
-        self.twin.set_current_stack(self.current_stack, state=self.state)
+        if definition is not None and self.current_stack is not None:
+            if definition == self.current_stack.manifest \
+                    and definition.get('stackId', '') == self.current_stack.stackId:
+                self.current_stack = Stack(
+                    edge_device=self, node=self.node, manifest=definition)
+                self.state = state
+                self.twin.set_current_stack(
+                    self.current_stack, state=self.state)
+        else:
+            self.node.get_logger().warn(
+                "Empty definition or stack in edge device stack updating method.")
 
     def _handle_exception(self, action, exception):
         """Centralized exception handling."""
-        print(f'An exception occurred during {action}: {exception}')
-
-    def bootstrap(self):
-        try:
-            print("Edge Device bootstrapping...")
-            current_definition = self.twin.get_current_stack().get('current', {})
-            stack_id = current_definition.get('stackId')
-
-            if stack_id:
-                self.definition = self.twin.stack(stack_id)
-                self.state = current_definition.get('state', UNKNOWN)
-                self._update_current_stack(self.definition, self.state)
-            else:
-                self.state = UNKNOWN
-
-            print('Edge Device bootstrap done.')
-        except Exception as e:
-            self._handle_exception('bootstrapping', e)
+        self.node.get_logger().error(
+            f'An exception occurred during {action}: {exception}')
 
     def activate(self, current=None):
         try:
@@ -67,14 +74,14 @@ class EdgeDevice:
         except Exception as e:
             self._handle_exception('activation', e)
 
-    def apply(self, current=None):
+    def apply(self, current: Stack):
         try:
             self._update_current_stack(current, ACTIVE)
             self.current_stack.apply(self.launcher)
         except Exception as e:
             self._handle_exception('applying changes', e)
 
-    def kill(self, payload=None):
+    def kill(self, payload: dict = None):
         try:
             if self.current_stack:
                 self.current_stack.kill_all(self.launcher)
