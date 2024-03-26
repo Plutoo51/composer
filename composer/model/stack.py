@@ -67,8 +67,6 @@ class Stack():
 
     def initialize(self):
         """Initialize the stack elements (nodes, composable nodes, parameters etc.)"""
-        self.nnode.get_logger().info(
-            f"INITIALIZING STACK: name: {self.name} stackID: {self.stackId}")
         referenced_stacks = self.manifest.get('stack', [])
 
         args = []
@@ -483,12 +481,6 @@ class Stack():
             launch_description (object): The launch description object.
         """
         for n in nodes:
-            for p in n.param:
-                self.nnode.get_logger().info(
-                    f"lifecycle param: {p.name} : {p.value}")
-            self.nnode.get_logger().info(
-                f"HANDLE REGULAR ros params for node: {n.namespace}/{n.name}: PARAM: {n.param}| ROSPARAM: {n.ros_params}")
-
             if n.action == STARTACTION or (n.action == NOACTION and self.should_node_run(n)):
                 launch_description.add_action(Node(
                     package=n.pkg,

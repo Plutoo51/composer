@@ -50,14 +50,8 @@ class Node:
         self.action = manifest.get('action', '')
 
         for p in self.param:
-            self.stack.nnode.get_logger().info(
-                f"self.param for node: {self.namespace}/{self.name} is: {p.name}:{p.value}")
-        for p in self.param:
             if p.name is not None and p.value is not None:
                 self.ros_params.append({p.name: p.value})
-        for p in self.ros_params:
-            self.stack.nnode.get_logger().info(
-                f"ros params for node: {self.name}: {p}")
 
         self.remap_args = [(stack.resolve_expression(
             rm['from']), stack.resolve_expression(rm['to'])) for rm in self.remap]

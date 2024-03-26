@@ -58,6 +58,7 @@ class EdgeDevice:
         else:
             self.node.get_logger().warn(
                 "Empty definition or stack in edge device stack updating method.")
+            self.current_stack = Stack(node=self.node, manifest={})
 
     def _handle_exception(self, action, exception):
         """Centralized exception handling."""

@@ -36,8 +36,6 @@ class Param:
     def _resolve_value(self, manifest: dict = {}):
         """Resolve the value of the parameter from various sources."""
         value = manifest.get('value', '')
-        print(
-            f"resolving param value in manifest: {manifest} for node:{self.node.name}")
         if manifest.get('from', ''):
             return self._resolve_from_file(self.stack.resolve_expression(manifest['from']))
         if manifest.get('command', ''):
