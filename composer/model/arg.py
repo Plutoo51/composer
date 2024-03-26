@@ -15,11 +15,13 @@
 #
 #
 
+from composer.expression_resolver import ExpressionResolver
+
 
 
 class Arg(object):
-    def __init__(self, stack, manifest={}):
-        self.stack = stack
+    def __init__(self, stack=None, manifest={}):
+        self.resolver = ExpressionResolver(stack=stack)
         self.name = manifest.get('name', '')
         self.value = self.resolve_arg(manifest.get('value', ''))
         self.default = self.resolve_arg(manifest.get('default', ''))
@@ -31,6 +33,6 @@ class Arg(object):
         return manifest
 
     def resolve_arg(self, val: str | int | float):
-        if self.stack.has_expression(val):
-            return self.stack.resolve_expression(val)
+        if self.resolver.has_expression(val):
+            return self.resolver.resolve_expression(val)
         return val

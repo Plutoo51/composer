@@ -20,7 +20,7 @@ import rclpy
 import composer.model.param as param
 from lifecycle_msgs.msg import Transition
 from lifecycle_msgs.srv import ChangeState
-
+from composer.expression_resolver import ExpressionResolver
 
 class Node:
     def __init__(self, stack, manifest: dict = {}, container=None):
@@ -30,6 +30,7 @@ class Node:
         self.stack = stack
         self.container = container
         self.manifest = manifest
+        self.resolver = ExpressionResolver(stack=stack)
         self.env = manifest.get('env', [])
         self.name = manifest.get('name', '')
         self.ros_params = []
@@ -42,7 +43,7 @@ class Node:
         self.plugin = manifest.get('plugin', '')
         self.lifecycle = manifest.get('lifecycle', '')
         self.ros_args = manifest.get('ros_args', '')
-        self.args = stack.resolve_expression(manifest.get('args', ''))
+        self.args = self.resolver.resolve_expression(manifest.get('args', ''))
         self.launch_prefix = manifest.get('launch-prefix', None)
         self.output = manifest.get('output', 'both')
         self.iff = manifest.get('if', '')
@@ -53,8 +54,8 @@ class Node:
             if p.name is not None and p.value is not None:
                 self.ros_params.append({p.name: p.value})
 
-        self.remap_args = [(stack.resolve_expression(
-            rm['from']), stack.resolve_expression(rm['to'])) for rm in self.remap]
+        self.remap_args = [(self.resolver.resolve_expression(
+            rm['from']), self.resolver.resolve_expression(rm['to'])) for rm in self.remap]
 
     def toManifest(self):
         """Converts the node object back into a manifest dictionary."""

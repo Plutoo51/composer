@@ -15,9 +15,6 @@
 #
 #
 
-import os
-import re
-import uuid
 import composer.model.node as node
 import composer.model.param as param
 import composer.model.composable as composable
@@ -30,7 +27,6 @@ from launch import LaunchDescription
 from launch_ros.actions import Node, LoadComposableNodes
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
-from ament_index_python.packages import get_package_share_directory
 
 NOACTION = 'none'
 STARTACTION = 'start'
@@ -235,7 +231,7 @@ class Stack():
         Returns:
             Stack: The merged stack object.
         """
-        
+
         merged = Stack(node=self.nnode,
                        manifest={})
         self._merge_attributes(merged, other)
@@ -536,59 +532,3 @@ class Stack():
         """
         self.kill_diff(launcher, self)
         self.launch(launcher)
-
-    def has_expression(self, value: str=""):
-        """
-        Determines if a param value contains expression or not
-        Returns True if it contains an expression
-        Returns False if it doesn't contain an expression
-        """
-        return re.search(r'\$\((.*?)\)', str(value)) is not None
-
-    def resolve_expression(self, value: str=""):
-        """Resolve Muto expressions like find, arg, etc.
-
-        Args:
-            value (str, optional): The value containing expressions. Defaults to "".
-
-        Returns:
-            str: The resolved value.
-        """
-        if not self.has_expression(value):
-            return value
-
-        value = str(value)
-        expressions = re.findall(r'\$\(([\s0-9a-zA-Z_-]+)\)', value)
-        result = value
-
-        for expression in expressions:
-            expr, var = expression.split()
-            resolved_value = ""
-
-            try:
-                if expr == 'find':
-                    resolved_value = get_package_share_directory(var)
-                elif expr == 'env':
-                    resolved_value = os.environ[var]
-                elif expr == 'optenv':
-                    resolved_value = os.environ.get(var, '')
-                elif expr == 'arg':
-                    for a in self.arg:
-                        if var == a.name:
-                            resolved_value = a.value
-                elif expr == 'anon':
-                    resolved_value = self.anon.get(var, var + uuid.uuid1().hex)
-                    self.anon[var] = resolved_value
-                elif expr == 'eval':
-                    raise NotImplementedError(
-                        f"Value: {value} is not supported in Muto")
-                else:
-                    continue
-                result = re.sub(
-                    r'\$\(' + re.escape(expression) + r'\)', resolved_value, result, count=1)
-            except KeyError:
-                raise Exception(f"{var} does not exist", 'param')
-            except Exception as e:
-                self.nnode.get_logger().info(f'Exception occurred: {e}')
-
-        return result

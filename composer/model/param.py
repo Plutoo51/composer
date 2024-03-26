@@ -21,13 +21,14 @@ import yaml
 import traceback
 import composer.model.stack as Stack
 import composer.model.node as Node
-
+from composer.expression_resolver import ExpressionResolver
 
 class Param:
     def __init__(self, stack: Stack, manifest=None, node: Node = None):
         self.manifest = manifest or {}
         self.stack = stack
         self.node = node
+        self.resolver = ExpressionResolver(stack=stack)
         self.name = manifest.get('name', '')
         self.value = self._resolve_value(self.manifest)
         self.from_file = manifest.get('from', '')
@@ -37,10 +38,10 @@ class Param:
         """Resolve the value of the parameter from various sources."""
         value = manifest.get('value', '')
         if manifest.get('from', ''):
-            return self._resolve_from_file(self.stack.resolve_expression(manifest['from']))
+            return self._resolve_from_file(self.resolver.resolve_expression(manifest['from']))
         if manifest.get('command', ''):
-            return self._execute_command(self.stack.resolve_expression(manifest['command']))
-        if self.stack.has_expression(value):
+            return self._execute_command(self.resolver.resolve_expression(manifest['command']))
+        if self.resolver.has_expression(value):
             return self._resolve_param_expression(manifest.get('value', ''))
         if isinstance(value, str) \
                 or isinstance(value, int) \
@@ -50,7 +51,7 @@ class Param:
 
     def _resolve_param_expression(self, value: str | int | float):
         """Resolve param expressions like find, arg, etc."""
-        return self.stack.resolve_expression(value)
+        return self.resolver.resolve_expression(value)
 
     def _resolve_from_file(self, filepath: str):
         """Fetch and return the content of the specified file."""
