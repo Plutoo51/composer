@@ -25,12 +25,9 @@ import composer.model.node as Node
 
 class Param:
     def __init__(self, stack: Stack, manifest=None, node: Node = None):
-        if manifest is None:
-            manifest = {}
-
+        self.manifest = manifest or {}
         self.stack = stack
         self.node = node
-        self.manifest = manifest
         self.name = manifest.get('name', '')
         self.value = self._resolve_value(self.manifest)
         self.from_file = manifest.get('from', '')
@@ -39,9 +36,11 @@ class Param:
     def _resolve_value(self, manifest: dict = {}):
         """Resolve the value of the parameter from various sources."""
         value = manifest.get('value', '')
-        if 'from' in manifest:
+        print(
+            f"resolving param value in manifest: {manifest} for node:{self.node.name}")
+        if manifest.get('from', ''):
             return self._resolve_from_file(self.stack.resolve_expression(manifest['from']))
-        if 'command' in manifest:
+        if manifest.get('command', ''):
             return self._execute_command(self.stack.resolve_expression(manifest['command']))
         if self.stack.has_expression(value):
             return self._resolve_param_expression(manifest.get('value', ''))
@@ -66,8 +65,7 @@ class Param:
 
                 matching_key = None
                 for key in yaml_contents.keys():
-                    # FIXME: Resolve namespace here to match the node name in YAML
-                    if key == self.node.name:
+                    if key == f"{self.node.namespace}/{self.node.name}":
                         matching_key = key
                         break
 
@@ -93,7 +91,6 @@ class Param:
             traceback.print_exc()
             self.stack.nnode.get_logger().error(
                 f"Failed to read from file '{filepath}': {e}")
-        return None
 
     def _execute_command(self, command: str = ""):
         """Execute the specified command and return its output."""
@@ -106,10 +103,13 @@ class Param:
 
     def _parse_value(self, value: str = ""):
         """Parse the given value into the appropriate data type."""
-        if value.lower() == 'true':
-            return True
-        if value.lower() == 'false':
-            return False
+        if isinstance(value, str):
+            if value.lower() == 'true':
+                return True
+            if value.lower() == 'false':
+                return False
+        if isinstance(value, bool):
+            return value
         try:
             return int(value)
         except ValueError:
@@ -117,7 +117,6 @@ class Param:
                 return float(value)
             except ValueError:
                 return value
-        return value
 
     def toManifest(self):
         """Convert this Param instance into a manifest dictionary."""
