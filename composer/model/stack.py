@@ -64,13 +64,11 @@ class Stack():
 
         if self.name and self.manifest and self.stackId:
             self.initialize()
-        else:
-            self.nnode.get_logger().warn("Empty stack initialization requested. Ignoring...")
 
     def initialize(self):
         """Initialize the stack elements (nodes, composable nodes, parameters etc.)"""
         self.nnode.get_logger().info(
-            f"INITIALIZING STACK: name: {self.name} stackID: {self.stackId} manifest: {self.manifest}")
+            f"INITIALIZING STACK: name: {self.name} stackID: {self.stackId}")
         referenced_stacks = self.manifest.get('stack', [])
 
         args = []
@@ -92,7 +90,7 @@ class Stack():
 
         for stackRef in referenced_stacks:
             stackDef = self.twin.stack(stackRef['thingId'])
-            stack = Stack(stackDef)
+            stack = Stack(manifest=stackDef)
             self.stack.append(stack)
 
     def compare_nodes(self, other):
@@ -239,11 +237,9 @@ class Stack():
         Returns:
             Stack: The merged stack object.
         """
-
-        merged = Stack(node=None,
+        
+        merged = Stack(node=self.nnode,
                        manifest={})
-        self.nnode.get_logger().info(
-            f"IN MERGE. Edge device has the current stack {self.edge_device.current_stack} | and the other stack is: {other.stackId}")
         self._merge_attributes(merged, other)
         self._merge_nodes(merged, other)
         self._merge_composables(merged, other)
