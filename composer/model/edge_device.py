@@ -49,14 +49,12 @@ class EdgeDevice:
 
     def _update_current_stack(self, definition=None, state=UNKNOWN):
         """Helper method to update the current stack based on the provided definition and state."""
-        if definition is not None and self.current_stack is not None:
-            if definition == self.current_stack.manifest \
-                    and definition.get('stackId', '') == self.current_stack.stackId:
-                self.current_stack = Stack(
-                    node=self.node, manifest=definition)
-                self.state = state
-                self.twin.set_current_stack(
-                    self.current_stack, state=self.state)
+        if definition:
+            self.current_stack = Stack(
+                node=self.node, manifest=definition)
+            self.state = state
+            self.twin.set_current_stack(
+                self.current_stack, state=self.state)
         else:
             self.node.get_logger().warn(
                 "Empty definition or stack in edge device stack updating method.")
