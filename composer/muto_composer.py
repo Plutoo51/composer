@@ -73,7 +73,6 @@ class MutoComposer(Node):
                              config=self.muto)
             self.edge_device = EdgeDevice(node=self, twin=self.twin)
             self._init_pipelines()
-            self.edge_device.bootstrap()
             self.router = Router(self.edge_device, self.pipelines)
         except Exception as e:
             self.get_logger().error(f'An exception occurred in bootstrap: {e}')
