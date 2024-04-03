@@ -20,6 +20,7 @@ import composer.model.param as param
 import composer.model.composable as composable
 import composer.model.arg as arg
 import rclpy
+import json
 from rclpy.node import Node
 from composer.twin import Twin
 from composer.introspection.introspector import Introspector
@@ -27,6 +28,7 @@ from launch import LaunchDescription
 from launch_ros.actions import Node, LoadComposableNodes
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
+from composer.expression_resolver import ExpressionResolver
 
 NOACTION = 'none'
 STARTACTION = 'start'
@@ -57,6 +59,7 @@ class Stack():
         self.node = []
         self.stack = []
         self.composable = []
+        self.resolver = ExpressionResolver()
 
         if self.name and self.manifest and self.stackId:
             self.initialize()
@@ -165,62 +168,6 @@ class Stack():
         except Exception as e:
             self.nnode.get_logger().info(
                 f'Exception occured in flatten_composable: {e}')
-
-    def calculate_ros_params_differences(self, current, other):
-        """Calculate differences in ROS parameters between nodes of the current stack and another stack.
-
-        Args:
-            current (Stack): The current stack object.
-            other (Stack): The other stack object.
-
-        Returns:
-            dict: A dictionary containing differences in ROS parameters.
-        """
-        differences = {}
-        for node_i in current.node:
-            for node_j in other.node:
-                if node_i.exec == node_j.exec and node_i.pkg == node_j.pkg:
-                    diff = self.compare_ros_params(
-                        node_i.ros_params, node_j.ros_params)
-                    if diff:
-                        differences[(node_i.name, node_j.name)] = diff
-        return differences
-
-    @staticmethod
-    def compare_ros_params(params1, params2):
-        """Compare ROS parameters between two sets of parameters.
-
-        Args:
-            params1 (list): First set of ROS parameters.
-            params2 (list): Second set of ROS parameters.
-
-        Returns:
-            list: A list containing the differences between the two sets of parameters.
-        """
-        diff = []
-
-        def params_to_flat_dict(params):
-            flat_dict = {}
-            for param in params:
-                if isinstance(param, dict):
-                    for key in param:
-                        flat_dict[key] = param.get(key)
-            return flat_dict
-
-        dict_params1 = params_to_flat_dict(params1)
-        dict_params2 = params_to_flat_dict(params2)
-
-        all_keys = set(dict_params1).union(set(dict_params2))
-
-        for key in all_keys:
-            val1 = dict_params1.get(key, None)
-            val2 = dict_params2.get(key, None)
-
-            if val1 != val2:
-                diff_entry = {'key': key, 'in_node1': val1, 'in_node2': val2}
-                diff.append(diff_entry)
-
-        return diff
 
     def merge(self, other):
         """Merge the current stack with another stack.
@@ -392,6 +339,7 @@ class Stack():
             manifest["node"].append(n.toManifest())
         for c in self.composable:
             manifest["composable"].append(c.toManifest())
+
         return manifest
 
     def process_remaps(self, remaps_config):
