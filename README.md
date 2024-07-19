@@ -1,4 +1,3 @@
-
 [![Catkin Make (Build and Test)](https://github.com/eclipse-muto/composer/actions/workflows/catkin-build.yml/badge.svg?branch=main)](https://github.com/eclipse-muto/composer/actions/workflows/catkin-build.yml)
 
 # Muto Composer
@@ -35,24 +34,24 @@ which returns something similar to the below structure:
 
 ```json
 {
-    "name": "Muto Learning Simulator with Gap Follwer",
-    "context": "eteration_office",
-    "stackId": "org.eclipse.muto.sandbox:f1tenth-multiagent-gym.launch",
-    "stack": [
-        {
-            "thingId": "org.eclipse.muto.sandbox:racecar1.launch"
-        }
-    ],
-    "node": [ 
-        {
-            "name": "reactive_gap_follower",
-            "pkg": "reactive_gap_follower",
-            "exec": "reactive_gap_follower",
-            "param": [
-              { "from": "$(find reactive_gap_follower)/params.yaml" }
-            ]
-        }
-    ]
+    "name": "Muto Learning Simulator with Gap Follwer",
+    "context": "eteration_office",
+    "stackId": "org.eclipse.muto.sandbox:f1tenth-multiagent-gym.launch",
+    "stack": [
+        {
+            "thingId": "org.eclipse.muto.sandbox:racecar1.launch"
+        }
+    ],
+    "node": [ 
+        {
+            "name": "reactive_gap_follower",
+            "pkg": "reactive_gap_follower",
+            "exec": "reactive_gap_follower",
+            "param": [
+              { "from": "$(find reactive_gap_follower)/params.yaml" }
+            ]
+        }
+    ]
 }
 ```
 This is a stack with a single node, "cass_gap_follower".  However, it includes another stack (with many other nodes and parameters) that it requires with a stackId reference org.eclipse.muto.sandbox:f1tenth-multiagent-gym.launch. The elements of the stack model resembles a [ROS launch XML](https://wiki.ros.org/roslaunch/XML), so it should be fairly straightforward to understand if you have experience writing XML launch files
@@ -95,24 +94,24 @@ topic: org.eclipse.muto.sandbox::simulator-monster-01/stack/commands/active
 ```
 ```yaml
 payload: {
-    "name": "Muto Learning Simulator with Gap Follwer",
-    "context": "eteration_office",
-    "stackId": "org.eclipse.muto.sandbox::composiv_simulator_gf.launch",
-    "stack": [
-        {
-            "thingId": "org.eclipse.muto.sandbox::composiv_simulator.launch"
-        }
-    ],
-    "node": [ 
-        {
-            "name": "cass_gap_follower",
-            "pkg": "cass_gap_follower",
-            "exec": "cass_gap_follower",
-            "param": [
-              { "from": "$(find cass_gap_follower)/params.yaml" }
-            ]
-        }
-    ]
+    "name": "Muto Learning Simulator with Gap Follwer",
+    "context": "eteration_office",
+    "stackId": "org.eclipse.muto.sandbox::composiv_simulator_gf.launch",
+    "stack": [
+        {
+            "thingId": "org.eclipse.muto.sandbox::composiv_simulator.launch"
+        }
+    ],
+    "node": [ 
+        {
+            "name": "cass_gap_follower",
+            "pkg": "cass_gap_follower",
+            "exec": "cass_gap_follower",
+            "param": [
+              { "from": "$(find cass_gap_follower)/params.yaml" }
+            ]
+        }
+    ]
 }
 ```
 
@@ -128,6 +127,46 @@ You can use any open-source mqtt client to issue these commands and monitor vari
 
 ```bash
 ros2 topic pub --once /mux std_msgs/Int32MultiArray "{layout: { dim: [], data_offset: 0}, data: [0, 0, 0, 0, 1 , 0] }"
+```
+
+## Run Tests
+
+To run all tests in the test directory with unittest:
+
+```bash
+    python3 -m unittest
+```
+
+
+To run a spesific test file:
+
+```bash
+    python3 -m unittest test_file.py
+```
+
+
+To measure coverage, firstly install coverage package:
+```bash
+    pip install coverage
+```
+
+After installing the package you can use these commands for mesure coverage over the tests:
+```bash
+    python3 -m coverage run --source=src/composer -m unittest discover -s src/composer/test
+```
+
+
+To generate HTML report of the coverage
+
+```bash
+    python3 -m coverage html --directory=test_coverages/composer_coverage
+```
+
+
+You can use '--omit' to discard a file from the coverage report
+
+```bash
+    python3 -m coverage run --source=src/composer --omit=src/composer/test/* -m unittest discover -s src/composer/test
 ```
 
 ## More information
