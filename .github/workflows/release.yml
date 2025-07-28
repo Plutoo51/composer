@@ -46,7 +46,7 @@ jobs:
           artifacts_testing: ${{ steps.upload_test_coverage_report.outputs.browser_download_url }}
           artifacts_documentation: "https://eclipse-muto.github.io/docs/docs/muto/"
           artifacts_coding_guidelines: "https://github.com/eclipse-muto/composer/blob/main/CODING_GUIDELINES.md"
-          artifacts_release_process: <>
+          artifacts_release_process: "https://eclipse-muto.github.io/docs/docs/release/"
       - name: Upload quality manifest to release
         uses: svenstaro/upload-release-action@v2
         with:
