@@ -7,6 +7,10 @@
 
 **Muto Composer** is a ROS 2 package designed to organize and automate the software deployment process to a fleet of vehicles. It streamlines the workflow by managing stack definitions, resolving dependencies, handling buildjobs and orchestrating the execution of various pipelines.
 
+## Part of Eclipse Muto
+
+Eclipse Muto is an adaptive framework and runtime for managing ROS 2 software stacks on autonomous vehicles and edge devices. See the [main repository](https://github.com/eclipse-muto/muto) for full documentation.
+
 ## Table of Contents
 
 - [Composer](#composer)
