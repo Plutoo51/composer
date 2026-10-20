@@ -169,10 +169,10 @@ class ArchiveStackHandler(StackTypeHandler):
         if subdir:
             resolved_subdir = os.path.realpath(os.path.join(workspace_dir, str(subdir)))
             dest_realpath = os.path.realpath(workspace_dir)
-            
+
             if not resolved_subdir.startswith(dest_realpath + os.sep) and resolved_subdir != dest_realpath:
                 raise ValueError("Path traversal attempt in subdir property")
-                
+
             if os.path.isdir(resolved_subdir):
                 self._move_contents(resolved_subdir, workspace_dir)
             else:
@@ -342,13 +342,16 @@ class ArchiveStackHandler(StackTypeHandler):
                     member_realpath = os.path.realpath(os.path.join(dest_realpath, member.name))
                     if not member_realpath.startswith(dest_realpath + os.sep) and member_realpath != dest_realpath:
                         raise ValueError(f"Path traversal attempt detected in tar file: {member.name}")
-                    
+
                     if member.issym() or member.islnk():
                         link_target_path = os.path.join(os.path.dirname(member_realpath), member.linkname)
                         link_target_realpath = os.path.realpath(link_target_path)
-                        if not link_target_realpath.startswith(dest_realpath + os.sep) and link_target_realpath != dest_realpath:
+                        if (
+                            not link_target_realpath.startswith(dest_realpath + os.sep)
+                            and link_target_realpath != dest_realpath
+                        ):
                             raise ValueError(f"Symlink/hardlink traversal attempt detected in tar file: {member.name}")
-                            
+
                 tar.extractall(destination)
         elif zipfile.is_zipfile(archive_path):
             with zipfile.ZipFile(archive_path, "r") as zipped:
@@ -617,9 +620,9 @@ class ArchiveStackHandler(StackTypeHandler):
 
         metadata = context.metadata
         name = metadata.get("name", context.name)
-        
+
         safe_name = str(name).replace(" ", "_").replace("/", "_").replace(":", "_").replace("\\", "_").lstrip(".")
         if not safe_name:
             safe_name = "default"
-            
+
         return os.path.join(WORKSPACES_PATH, safe_name)
